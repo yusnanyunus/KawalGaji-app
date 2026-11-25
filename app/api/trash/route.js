@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { session } from '@/lib/auth';
 
 // urutan hapus: data yang memakai relasi dihapus lebih dulu
@@ -13,7 +13,7 @@ export async function GET() {
   if (user.role !== 'admin') return err('Forbidden', 403);
   const out = {};
   for (const t of ORDER) {
-    const { data, error } = await db.from(t).select(SEL[t]).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
+    const { data, error } = await getDb().from(t).select(SEL[t]).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
     if (error) { console.error('Trash listing failed:', error.code); return err('Gagal memuat data terhapus', 500); }
     out[t] = data;
   }
@@ -21,7 +21,7 @@ export async function GET() {
 }
 
 async function purge(t, { oid, month }) {
-  let q = db.from(t).delete().not('deleted_at', 'is', null);
+  let q = getDb().from(t).delete().not('deleted_at', 'is', null);
   if (oid) q = q.eq('oid', oid);
   if (month) {
     const [y, m] = month.split('-').map(Number);

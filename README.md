@@ -16,4 +16,6 @@
 3. Hubungkan repo sebagai aplikasi Next.js dengan root `kawalgaji`, lalu deploy ulang setiap kali environment variables berubah. Netlify mendukung App Router dan middleware Next.js melalui adapter/runtime-nya.
 4. Pastikan `.env.local` tidak ikut dikomit. `.env.example` hanya berisi placeholder.
 
+Client Supabase dibuat saat permintaan memerlukan akses database, bukan saat `next build`. `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY` tidak digunakan oleh aplikasi ini.
+
 Jalankan migrasi SQL hanya setelah tabel aplikasi tersedia. Verifikasi login admin sebelum mengundang pengguna lain. Role `admin` dapat mengelola pengguna dan menghapus permanen data; role `user` hanya dapat memakai fitur keuangan bersama.
