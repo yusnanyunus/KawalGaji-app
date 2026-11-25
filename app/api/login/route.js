@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { sign } from '@/lib/auth';
 export async function POST(req) {
   const length = Number(req.headers.get('content-length') || 0);
@@ -11,6 +11,11 @@ export async function POST(req) {
   const password = typeof body?.password === 'string' ? body.password : '';
   if (!email || !password || email.length > 150 || password.length > 256)
     return NextResponse.json({ error: 'Email atau password salah' }, { status: 401 });
+  let db;
+  try { db = getDb(); } catch {
+    console.error('Login database initialization failed; check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+    return NextResponse.json({ error: 'Layanan login sementara tidak tersedia' }, { status: 503 });
+  }
   const { data: allowed, error: limitError } = await db.rpc('check_login_rate_limit', { p_email: email });
   if (limitError) {
     console.error('Login rate limit check failed:', {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { session } from '@/lib/auth';
 
 const COLS = {
@@ -40,7 +40,7 @@ async function clean(table, body) {
   return o;
 }
 async function hasAnotherActiveAdmin(oid) {
-  const { count, error } = await db.from('users').select('oid', { count: 'exact', head: true })
+  const { count, error } = await getDb().from('users').select('oid', { count: 'exact', head: true })
     .eq('role', 'admin').eq('status', 'active').is('deleted_at', null).neq('oid', oid);
   return !error && count > 0;
 }
@@ -50,7 +50,7 @@ const monthRange = (m) => {
 };
 async function monthExists(m) {
   const [from, to] = monthRange(m);
-  const { count } = await db.from('task_list').select('oid', { count: 'exact', head: true })
+  const { count } = await getDb().from('task_list').select('oid', { count: 'exact', head: true })
     .is('deleted_at', null).gte('date_payment', from).lt('date_payment', to);
   return count > 0;
 }
@@ -58,7 +58,7 @@ async function monthExists(m) {
 export async function GET(_req, { params }) {
   const g = await guard(params); if (g.e) return g.e;
   const order = g.table === 'task_list' ? 'date_payment' : 'created_at';
-  const { data, error } = await db.from(g.table).select(SELECT[g.table] || '*').is('deleted_at', null).order(order, { ascending: false });
+  const { data, error } = await getDb().from(g.table).select(SELECT[g.table] || '*').is('deleted_at', null).order(order, { ascending: false });
   if (error) { console.error('Table read failed:', g.table, error.code); return err('Gagal memuat data', 500); }
   return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
 }
@@ -82,7 +82,7 @@ export async function POST(req, { params }) {
   let rows;
   try { rows = await Promise.all((Array.isArray(body) ? body : [body]).map(async (b) => ({ ...(await clean(g.table, b)), oid: randomUUID().toUpperCase(), user_created: g.s.oid }))); }
   catch (e) { return err(e.message || 'Data tidak valid'); }
-  const { error } = await db.from(g.table).insert(rows);
+  const { error } = await getDb().from(g.table).insert(rows);
   if (error) { console.error('Table insert failed:', g.table, error.code); return err('Data gagal disimpan', 400); }
   return NextResponse.json({ ok: true });
 }
@@ -96,12 +96,12 @@ export async function PUT(req, { params }) {
   if (g.table === 'users' && body.oid === g.s.oid && (cleaned.role === 'user' || cleaned.status === 'inactive'))
     return err('Tidak dapat menurunkan peran atau menonaktifkan akun sendiri');
   if (g.table === 'users' && (cleaned.role === 'user' || cleaned.status === 'inactive')) {
-    const { data: target } = await db.from('users').select('oid,role,status').eq('oid', body.oid).maybeSingle();
+    const { data: target } = await getDb().from('users').select('oid,role,status').eq('oid', body.oid).maybeSingle();
     if (target?.role === 'admin' && target.status === 'active' && !(await hasAnotherActiveAdmin(target.oid)))
       return err('Setidaknya satu admin aktif harus dipertahankan', 409);
   }
   const row = { ...cleaned, updated_at: new Date().toISOString(), user_update: g.s.oid };
-  const { error } = await db.from(g.table).update(row).eq('oid', body.oid).is('deleted_at', null);
+  const { error } = await getDb().from(g.table).update(row).eq('oid', body.oid).is('deleted_at', null);
   if (error) { console.error('Table update failed:', g.table, error.code); return err('Data gagal diperbarui', 400); }
   return NextResponse.json({ ok: true });
 }
@@ -112,7 +112,7 @@ export async function DELETE(req, { params }) {
   if (month) {
     if (g.table !== 'task_list' || !/^\d{4}-\d{2}$/.test(month)) return err('Permintaan tidak valid');
     const [from, to] = monthRange(month);
-    const { error } = await db.from('task_list')
+    const { error } = await getDb().from('task_list')
       .update({ deleted_at: new Date().toISOString(), user_delete: g.s.oid })
       .is('deleted_at', null).gte('date_payment', from).lt('date_payment', to);
     if (error) { console.error('Group soft delete failed:', error.code); return err('Data gagal dihapus', 400); }
@@ -121,11 +121,11 @@ export async function DELETE(req, { params }) {
   const oid = sp.get('oid');
   if (g.table === 'users' && oid === g.s.oid) return err('Tidak bisa menghapus akun yang sedang dipakai');
   if (g.table === 'users') {
-    const { data: target } = await db.from('users').select('oid,role,status').eq('oid', oid).maybeSingle();
+    const { data: target } = await getDb().from('users').select('oid,role,status').eq('oid', oid).maybeSingle();
     if (target?.role === 'admin' && target.status === 'active' && !(await hasAnotherActiveAdmin(target.oid)))
       return err('Setidaknya satu admin aktif harus dipertahankan', 409);
   }
-  const { error } = await db.from(g.table).update({ deleted_at: new Date().toISOString(), user_delete: g.s.oid }).eq('oid', oid);
+  const { error } = await getDb().from(g.table).update({ deleted_at: new Date().toISOString(), user_delete: g.s.oid }).eq('oid', oid);
   if (error) { console.error('Row soft delete failed:', g.table, error.code); return err('Data gagal dihapus', 400); }
   return NextResponse.json({ ok: true });
 }
