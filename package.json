@@ -1,0 +1,15 @@
+{
+  "name": "kawalgaji",
+  "private": true,
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "seed": "node --env-file=.env.local scripts/seed.mjs" },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "bcryptjs": "^2.4.3",
+    "framer-motion": "^11.11.0",
+    "jose": "^5.9.0",
+    "lucide-react": "^0.460.0",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
