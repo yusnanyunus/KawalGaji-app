@@ -5,8 +5,10 @@ import { TrendingUp, TrendingDown, Receipt, Clock } from 'lucide-react';
 import { rp } from '@/lib/fmt';
 
 const key = (d) => d.toISOString().slice(0, 7);
+const expenseMonth = (x) => x.month_group || x.date_payment.slice(0, 7);
 export default function Dashboard() {
   const [d, setD] = useState(null);
+  const [chartYear, setChartYear] = useState(new Date().getFullYear());
   useEffect(() => { (async () => {
     const [t, c] = await Promise.all(['task_list', 'category'].map((x) => fetch('/api/' + x).then((r) => r.json())));
     setD({ t, c });
@@ -14,18 +16,23 @@ export default function Dashboard() {
   if (!d) return <p className="lbl">Memuat dashboard...</p>;
 
   const now = new Date();
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const m = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const k = key(new Date(Date.UTC(m.getFullYear(), m.getMonth(), 1)));
-    return { k, label: m.toLocaleDateString('id-ID', { month: 'short' }), total: d.t.filter((x) => x.date_payment.startsWith(k)).reduce((s, x) => s + Number(x.price), 0) };
+  const years = [...new Set([now.getFullYear(), ...d.t.map((x) => Number(expenseMonth(x).slice(0, 4)))])].sort((a, b) => b - a);
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const m = new Date(chartYear, i, 1);
+    const k = `${chartYear}-${String(i + 1).padStart(2, '0')}`;
+    return { k, label: m.toLocaleDateString('id-ID', { month: 'short' }), total: d.t.filter((x) => expenseMonth(x) === k).reduce((s, x) => s + Number(x.price), 0) };
   });
-  const cur = months[5], prev = months[4];
-  const thisMonth = d.t.filter((x) => x.date_payment.startsWith(cur.k));
+  const curKey = key(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1)));
+  const prevKey = key(new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1)));
+  const cur = { k: curKey, total: d.t.filter((x) => expenseMonth(x) === curKey).reduce((s, x) => s + Number(x.price), 0) };
+  const prev = { total: d.t.filter((x) => expenseMonth(x) === prevKey).reduce((s, x) => s + Number(x.price), 0) };
+  const thisMonth = d.t.filter((x) => expenseMonth(x) === cur.k);
   const unpaid = thisMonth.filter((x) => !x.checklist).reduce((s, x) => s + Number(x.price), 0);
   const diff = prev.total ? Math.round(((cur.total - prev.total) / prev.total) * 100) : null;
   const byCat = d.c.map((c) => ({ n: c.description, v: thisMonth.filter((x) => x.category_oid === c.oid).reduce((s, x) => s + Number(x.price), 0) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 5);
   const catName = (id) => d.c.find((c) => c.oid === id)?.description || '-';
   const unpaidList = d.t.filter((x) => !x.checklist).sort((a, b) => a.date_payment.localeCompare(b.date_payment));
+  const paidList = d.t.filter((x) => x.checklist).sort((a, b) => b.date_payment.localeCompare(a.date_payment)).slice(0, 5);
   const max = Math.max(...months.map((m) => m.total), 1);
 
   return (
@@ -43,19 +50,21 @@ export default function Dashboard() {
 
       <div className="grid g2" style={{ marginBottom: 14 }}>
         <div className="card">
-          <b>Pengeluaran 6 bulan terakhir</b>
-          <svg viewBox="0 0 320 160" width="100%" role="img" aria-label="Grafik pengeluaran per bulan" style={{ marginTop: 10 }}>
+          <div className="head"><b>Total pengeluaran per bulan</b><select className="inp" aria-label="Pilih tahun grafik" value={chartYear} onChange={(e) => setChartYear(Number(e.target.value))} style={{ width: 'auto', minWidth: 110 }}>
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select></div>
+          <div style={{ overflowX: 'auto' }}><svg viewBox="0 0 640 160" width="100%" role="img" aria-label={`Grafik total pengeluaran tiap bulan tahun ${chartYear}`} style={{ marginTop: 10, minWidth: 560 }}>
             {months.map((m, i) => {
               const h = (m.total / max) * 110, x = 12 + i * 52;
               return (
                 <g key={m.k}>
-                  <motion.rect x={x} width="34" rx="8" fill={i === 5 ? '#1f8a7a' : '#9edbd0'} initial={{ y: 130, height: 0 }} animate={{ y: 130 - h, height: h }} transition={{ delay: .1 + i * .07, type: 'spring', damping: 18 }} />
+                  <motion.rect x={x} width="34" rx="8" fill={i === now.getMonth() && chartYear === now.getFullYear() ? '#1f8a7a' : '#9edbd0'} initial={{ y: 130, height: 0 }} animate={{ y: 130 - h, height: h }} transition={{ delay: .1 + i * .04, type: 'spring', damping: 18 }} />
                   <text x={x + 17} y="148" textAnchor="middle" fontSize="11" fill="#6b8286">{m.label}</text>
                   {m.total > 0 && <text x={x + 17} y={122 - h} textAnchor="middle" fontSize="9" fill="#12353a">{m.total >= 1e6 ? (m.total / 1e6).toFixed(1) + 'jt' : Math.round(m.total / 1e3) + 'rb'}</text>}
                 </g>
               );
             })}
-          </svg>
+          </svg></div>
         </div>
         <div className="card">
           <b>Ringkasan pengeluaran</b>
@@ -84,9 +93,9 @@ export default function Dashboard() {
       </div>
 
       <div className="card">
-        <b>5 pengeluaran terakhir</b>
-        {d.t.length === 0 && <p className="lbl" style={{ marginTop: 8 }}>Belum ada data. Catat di menu Pengeluaran.</p>}
-        {d.t.slice(0, 5).map((x, i) => (
+        <b>5 pengeluaran lunas terakhir</b>
+        {paidList.length === 0 && <p className="lbl" style={{ marginTop: 8 }}>Belum ada pengeluaran yang lunas.</p>}
+        {paidList.map((x, i) => (
           <motion.div key={x.oid} className="row" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: .15 + i * .06 }}>
             <div className="ico"><Receipt size={18} /></div>
             <div className="grow"><b>{x.description || catName(x.category_oid)}</b><small><Clock size={11} style={{ verticalAlign: -1 }} /> {x.date_payment} • {catName(x.category_oid)}</small></div>

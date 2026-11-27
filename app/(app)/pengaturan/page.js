@@ -34,7 +34,7 @@ export default function Pengaturan() {
   const cur = Math.min(page, pages);
   const view = list.slice((cur - 1) * 10, cur * 10);
   const total = Object.values(data).reduce((s, a) => s + a.length, 0);
-  const mk = (r) => r.date_payment.slice(0, 7);
+  const mk = (r) => r.month_group || r.date_payment.slice(0, 7);
 
   const ask = (title, payload, items, strict = false) => { setTyped(''); setPv({ title, payload, items, strict }); };
   const item = (t, r) => `${TABS[t].l}: ${TABS[t].text(r)}`;

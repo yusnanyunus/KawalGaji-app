@@ -29,7 +29,7 @@ export default function Salin() {
 
   const groups = useMemo(() => {
     const g = {};
-    (tasks || []).forEach((t) => { const k = t.date_payment.slice(0, 7); g[k] = g[k] || { k, n: 0, total: 0 }; g[k].n++; g[k].total += Number(t.price); });
+    (tasks || []).forEach((t) => { const k = t.month_group || t.date_payment.slice(0, 7); g[k] = g[k] || { k, n: 0, total: 0 }; g[k].n++; g[k].total += Number(t.price); });
     return Object.values(g).sort((a, b) => b.k.localeCompare(a.k));
   }, [tasks]);
 
@@ -37,7 +37,7 @@ export default function Salin() {
     if (!tasks) return;
     const cur = src || (groups.find((g) => g.k < target) || groups[0])?.k || '';
     if (cur !== src) return setSrc(cur);
-    setItems(tasks.filter((t) => t.date_payment.startsWith(src)).map((t) => ({ ...t, on: true, orig: t.date_payment, date_payment: shift(t.date_payment, target), checklist: false })));
+    setItems(tasks.filter((t) => (t.month_group || t.date_payment.slice(0, 7)) === src).map((t) => ({ ...t, on: true, orig: t.date_payment, date_payment: shift(t.date_payment, target), month_group: target, checklist: false })));
   }, [tasks, src]); // eslint-disable-line
 
   const upd = (oid, patch) => setItems((a) => a.map((i) => (i.oid === oid ? { ...i, ...patch } : i)));
@@ -49,7 +49,7 @@ export default function Salin() {
 
   async function copy() {
     setBusy(true); setMsg('');
-    const rows = chosen.map(({ category_oid, payment_method_oid, date_payment, description, price }) => ({ category_oid, payment_method_oid, date_payment, description, price, checklist: false }));
+    const rows = chosen.map(({ category_oid, payment_method_oid, month_group, date_payment, description, price }) => ({ category_oid, payment_method_oid, month_group, date_payment, description, price, checklist: false }));
     const res = await fetch('/api/task_list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rows) });
     const d = await res.json().catch(() => ({}));
     setBusy(false);

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Pencil, Trash2, X, AlertTriangle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function Crud({ table, title, fields, empty = {}, hint, group }) {
+export default function Crud({ table, title, fields, empty = {}, hint, group, status }) {
   const [rows, setRows] = useState(null);
   const [form, setForm] = useState(null);
   const [del, setDel] = useState(null);
@@ -77,6 +77,7 @@ export default function Crud({ table, title, fields, empty = {}, hint, group }) 
                 <div className="row">
                   <div className="grow">
                     <b>{first.fmt ? first.fmt(r) : r[first.k]}</b>
+                    {status && <span className={`badge ${r[status.key] ? '' : 'off'}`} style={{ display: 'inline-block', marginTop: 5 }}>{r[status.key] ? status.paid : status.unpaid}</span>}
                     <small>{fields.slice(1).filter((f) => f.list !== false && f.t !== 'password').map((f) => (f.fmt ? f.fmt(r) : String(r[f.k] ?? '-'))).join(' • ')}</small>
                   </div>
                   <button className="ib" aria-label="Ubah" onClick={() => { setErr(''); setForm({ ...r, password: '' }); }}><Pencil size={16} /></button>

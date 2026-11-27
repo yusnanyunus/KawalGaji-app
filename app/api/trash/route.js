@@ -23,10 +23,7 @@ export async function GET() {
 async function purge(t, { oid, month }) {
   let q = db.from(t).delete().not('deleted_at', 'is', null);
   if (oid) q = q.eq('oid', oid);
-  if (month) {
-    const [y, m] = month.split('-').map(Number);
-    q = q.gte('date_payment', `${month}-01`).lt('date_payment', new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10));
-  }
+  if (month) q = q.eq('month_group', month);
   const { data, error } = await q.select('oid');
   return { n: data?.length || 0, error };
 }

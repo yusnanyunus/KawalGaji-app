@@ -8,7 +8,7 @@ const COLS = {
   users: ['fullname', 'email', 'username', 'password', 'phone', 'status', 'role'],
   category: ['description'],
   payment_method: ['description'],
-  task_list: ['category_oid', 'payment_method_oid', 'date_payment', 'description', 'price', 'checklist']
+  task_list: ['category_oid', 'payment_method_oid', 'month_group', 'date_payment', 'description', 'price', 'checklist']
 };
 const SELECT = { users: 'oid,fullname,email,username,phone,status,role,created_at,updated_at' };
 const err = (m, s = 400) => NextResponse.json({ error: m }, { status: s });
@@ -28,6 +28,10 @@ async function guard(params) {
 async function clean(table, body) {
   const o = {};
   COLS[table].forEach((c) => { if (body[c] !== undefined) o[c] = body[c]; });
+  if (table === 'task_list') {
+    if (!o.month_group && o.date_payment) o.month_group = String(o.date_payment).slice(0, 7);
+    if (o.month_group && !/^\d{4}-(0[1-9]|1[0-2])$/.test(o.month_group)) throw new Error('Bulan pengeluaran tidak valid');
+  }
   if (table === 'users') {
     if (o.email) o.email = o.email.trim().toLowerCase();
     if (o.password) {
@@ -44,21 +48,18 @@ async function hasAnotherActiveAdmin(oid) {
     .eq('role', 'admin').eq('status', 'active').is('deleted_at', null).neq('oid', oid);
   return !error && count > 0;
 }
-const monthRange = (m) => {
-  const [y, mo] = m.split('-').map(Number);
-  return [`${m}-01`, new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10)];
-};
 async function monthExists(m) {
-  const [from, to] = monthRange(m);
   const { count } = await db.from('task_list').select('oid', { count: 'exact', head: true })
-    .is('deleted_at', null).gte('date_payment', from).lt('date_payment', to);
+    .is('deleted_at', null).eq('month_group', m);
   return count > 0;
 }
 
 export async function GET(_req, { params }) {
   const g = await guard(params); if (g.e) return g.e;
-  const order = g.table === 'task_list' ? 'date_payment' : 'created_at';
-  const { data, error } = await db.from(g.table).select(SELECT[g.table] || '*').is('deleted_at', null).order(order, { ascending: false });
+  let query = db.from(g.table).select(SELECT[g.table] || '*').is('deleted_at', null);
+  if (g.table === 'task_list') query = query.order('month_group', { ascending: false }).order('date_payment', { ascending: false });
+  else query = query.order('created_at', { ascending: false });
+  const { data, error } = await query;
   if (error) { console.error('Table read failed:', g.table, error.code); return err('Gagal memuat data', 500); }
   return NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
 }
@@ -70,7 +71,7 @@ export async function POST(req, { params }) {
   if (Array.isArray(body) && (g.table !== 'task_list' || body.some((row) => !row || typeof row !== 'object' || Array.isArray(row)))) return err('Data tidak valid');
   if (g.table === 'task_list' && Array.isArray(body)) {
     if (!body.length || body.length > 500) return err('Jumlah data tidak valid');
-    const months = [...new Set(body.map((b) => String(b.date_payment).slice(0, 7)))];
+    const months = [...new Set(body.map((b) => String(b.month_group || b.date_payment).slice(0, 7)))];
     for (const m of months) {
       if (!/^\d{4}-\d{2}$/.test(m)) return err('Format tanggal tidak valid');
       if (await monthExists(m)) {
@@ -111,10 +112,9 @@ export async function DELETE(req, { params }) {
   const month = sp.get('month');
   if (month) {
     if (g.table !== 'task_list' || !/^\d{4}-\d{2}$/.test(month)) return err('Permintaan tidak valid');
-    const [from, to] = monthRange(month);
     const { error } = await db.from('task_list')
       .update({ deleted_at: new Date().toISOString(), user_delete: g.s.oid })
-      .is('deleted_at', null).gte('date_payment', from).lt('date_payment', to);
+      .is('deleted_at', null).eq('month_group', month);
     if (error) { console.error('Group soft delete failed:', error.code); return err('Data gagal dihapus', 400); }
     return NextResponse.json({ ok: true });
   }

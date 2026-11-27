@@ -4,7 +4,7 @@ import Crud from '@/components/Crud';
 import { rp } from '@/lib/fmt';
 
 const group = {
-  key: (r) => r.date_payment.slice(0, 7),
+  key: (r) => r.month_group || r.date_payment.slice(0, 7),
   label: (k) => new Date(k + '-01T00:00:00').toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }),
   summary: (rs) => `${rs.length} task • ${rp(rs.reduce((s, x) => s + Number(x.price), 0))} • ${rs.filter((x) => x.checklist).length} lunas`
 };
@@ -19,10 +19,12 @@ export default function Page() {
   const fields = [
     { k: 'description', l: 'Deskripsi', req: false, fmt: (r) => r.description || nm(m.c, r.category_oid) },
     { k: 'price', l: 'Jumlah (Rp)', t: 'number', fmt: (r) => rp(r.price) },
+    { k: 'month_group', l: 'Bulan pengeluaran', t: 'month', fmt: (r) => r.month_group || r.date_payment.slice(0, 7) },
     { k: 'date_payment', l: 'Tanggal bayar', t: 'date' },
     { k: 'category_oid', l: 'Kategori', t: 'select', opts: m.c.map((x) => ({ v: x.oid, l: x.description })), fmt: (r) => nm(m.c, r.category_oid) },
     { k: 'payment_method_oid', l: 'Metode pembayaran', t: 'select', opts: m.p.map((x) => ({ v: x.oid, l: x.description })), fmt: (r) => nm(m.p, r.payment_method_oid) },
     { k: 'checklist', l: 'Sudah dibayar', t: 'checkbox', fmt: (r) => (r.checklist ? 'Lunas' : 'Belum bayar') }
   ];
-  return <Crud table="task_list" title="Pengeluaran" hint="Pengeluaran dikelompokkan per bulan" fields={fields} group={group} empty={{ date_payment: new Date().toISOString().slice(0, 10), checklist: false }} />;
+  const today = new Date().toISOString().slice(0, 10);
+  return <Crud table="task_list" title="Pengeluaran" hint="Atur bulan anggaran terpisah dari tanggal pembayaran" fields={fields} group={group} status={{ key: 'checklist', paid: 'Lunas', unpaid: 'Belum lunas' }} empty={{ month_group: today.slice(0, 7), date_payment: today, checklist: false }} />;
 }
